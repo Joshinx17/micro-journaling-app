@@ -1,34 +1,172 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Appearance, FlatList, Modal, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { JournalEntry, ThemePreference } from './models/JournalEntry';
 import { createEntry, deleteEntry, initializeJournal, loadEntries, updateEntry } from './services/journalService';
 import { getSettings, saveSettings } from './services/settingsService';
-import { displayDate, displayTime } from './utils/date';
+import { displayTime } from './utils/date';
 
-type Screen='journal'|'search'|'settings';
+type Screen = 'journal' | 'search' | 'settings';
+const avatar = require('./assets/mindlog-avatar.png');
+
 export default function App() {
-  const system=useColorScheme(); const [screen,setScreen]=useState<Screen>('journal'); const [folder,setFolder]=useState<string|null>(null); const [entries,setEntries]=useState<JournalEntry[]>([]); const [theme,setTheme]=useState<ThemePreference>('system'); const [loading,setLoading]=useState(true); const [draft,setDraft]=useState(''); const [saving,setSaving]=useState(false); const [editing,setEditing]=useState<JournalEntry|null>(null); const [editText,setEditText]=useState('');
-  const dark=(theme==='system'?system:theme)==='dark'; const c=colors(dark);
-  const refresh=async (root=folder) => { if(!root)return; try { setEntries(await loadEntries(root)); } catch(e) { Alert.alert('Could not read journal', e instanceof Error?e.message:'Try selecting your journal folder again.'); } };
-  useEffect(()=>{(async()=>{ try { const s=await getSettings(); if(s?.folderUri){setFolder(s.folderUri);setTheme(s.theme);await refresh(s.folderUri);} } finally {setLoading(false);} })();},[]);
-  const chooseFolder=async()=>{ try { const p=await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync(); if(!p.granted) return; await initializeJournal(p.directoryUri); await saveSettings({folderUri:p.directoryUri,theme}); setFolder(p.directoryUri); await refresh(p.directoryUri); } catch(e) { Alert.alert('Could not set up journal',e instanceof Error?e.message:'Please try another folder.'); } };
-  const save=async()=>{ if(!folder){await chooseFolder();return;} if(!draft.trim()){Alert.alert('Nothing to save','Write a thought before saving.');return;} setSaving(true);try{const e=await createEntry(folder,draft);setEntries(x=>[e,...x]);setDraft('');}catch(e){Alert.alert("Couldn't save your entry",e instanceof Error?e.message:'Your journal remains unchanged.');}finally{setSaving(false);}};
-  const submitEdit=async()=>{if(!editing||!folder)return;try{const e=await updateEntry(folder,editing,editText);setEntries(x=>x.map(v=>v.id===e.id?e:v));setEditing(null);}catch(e){Alert.alert('Could not update entry',e instanceof Error?e.message:'Your journal remains unchanged.');}};
-  const remove=(e:JournalEntry)=>Alert.alert('Delete this entry?','This permanently removes it from its Markdown file.',[{text:'Cancel',style:'cancel'},{text:'Delete',style:'destructive',onPress:async()=>{try{if(folder)await deleteEntry(folder,e);setEntries(x=>x.filter(v=>v.id!==e.id));}catch(err){Alert.alert('Could not delete entry',err instanceof Error?err.message:'Your journal remains unchanged.');}}}]);
-  const setPreference=async(t:ThemePreference)=>{setTheme(t);if(folder)await saveSettings({folderUri:folder,theme:t});};
-  const exportMarkdown=async()=>{ if(!folder)return; try { const output=`${FileSystem.cacheDirectory}MindLog-export.txt`; const summary=entries.map(e=>`# ${displayDate(e.createdAt)} · ${displayTime(e.createdAt)}\n\n${e.content}`).join('\n\n---\n\n'); await FileSystem.writeAsStringAsync(output,summary); await Sharing.shareAsync(output,{mimeType:'text/plain',dialogTitle:'Export MindLog journal'}); }catch(e){Alert.alert('Export failed',e instanceof Error?e.message:'Try again.');} };
-  if(loading)return <View style={[styles.center,{backgroundColor:c.bg}]}><ActivityIndicator color={c.accent}/></View>;
-  if(!folder)return <Onboarding c={c} choose={chooseFolder}/>;
-  return <SafeAreaView style={[styles.safe,{backgroundColor:c.bg}]}><StatusBar barStyle={dark?'light-content':'dark-content'}/>{screen==='journal'&&<Journal c={c} draft={draft} setDraft={setDraft} save={save} saving={saving} entries={entries} onEdit={(e:JournalEntry)=>{setEditing(e);setEditText(e.content)}} onDelete={remove}/>} {screen==='search'&&<Search c={c} entries={entries} onEdit={(e:JournalEntry)=>{setEditing(e);setEditText(e.content)}} onDelete={remove}/>} {screen==='settings'&&<Settings c={c} folder={folder} theme={theme} setTheme={setPreference} choose={chooseFolder} exportJournal={exportMarkdown}/>}<Nav c={c} screen={screen} setScreen={setScreen}/><Modal visible={!!editing} animationType="slide" transparent><View style={styles.modalShade}><View style={[styles.modal,{backgroundColor:c.card}]}><Text style={[styles.modalTitle,{color:c.text}]}>Edit thought</Text><TextInput value={editText} onChangeText={setEditText} multiline autoFocus style={[styles.editor,{color:c.text,borderColor:c.line}]} placeholderTextColor={c.muted}/><View style={styles.actions}><Pressable onPress={()=>setEditing(null)}><Text style={{color:c.muted}}>Cancel</Text></Pressable><Pressable onPress={submitEdit}><Text style={{color:c.accent,fontWeight:'700'}}>Save changes</Text></Pressable></View></View></View></Modal></SafeAreaView>;
+  const system = useColorScheme();
+  const [screen, setScreen] = useState<Screen>('journal');
+  const [folder, setFolder] = useState<string | null>(null);
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [theme, setTheme] = useState<ThemePreference>('dark');
+  const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState<JournalEntry | null>(null);
+  const [editText, setEditText] = useState('');
+  const dark = (theme === 'system' ? system : theme) === 'dark';
+  const c = colors(dark);
+
+  const refresh = async (root = folder) => {
+    if (!root) return;
+    try { setEntries(await loadEntries(root)); }
+    catch (error) { Alert.alert('Could not read journal', error instanceof Error ? error.message : 'Try selecting your journal folder again.'); }
+  };
+
+  useEffect(() => { (async () => {
+    try {
+      const settings = await getSettings();
+      if (settings?.folderUri) { setFolder(settings.folderUri); setTheme(settings.theme); await refresh(settings.folderUri); }
+    } finally { setLoading(false); }
+  })(); }, []);
+
+  const chooseFolder = async () => {
+    try {
+      const permission = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+      if (!permission.granted) return;
+      await initializeJournal(permission.directoryUri);
+      await saveSettings({ folderUri: permission.directoryUri, theme });
+      setFolder(permission.directoryUri);
+      await refresh(permission.directoryUri);
+    } catch (error) { Alert.alert('Could not set up journal', error instanceof Error ? error.message : 'Please try another folder.'); }
+  };
+
+  const save = async () => {
+    if (!folder) { await chooseFolder(); return; }
+    if (!draft.trim()) { Alert.alert('Nothing to save', 'Write a thought before saving.'); return; }
+    setSaving(true);
+    try { const entry = await createEntry(folder, draft); setEntries(current => [entry, ...current]); setDraft(''); }
+    catch (error) { Alert.alert("Couldn't save your entry", error instanceof Error ? error.message : 'Your journal remains unchanged.'); }
+    finally { setSaving(false); }
+  };
+
+  const submitEdit = async () => {
+    if (!editing || !folder) return;
+    try { const entry = await updateEntry(folder, editing, editText); setEntries(current => current.map(item => item.id === entry.id ? entry : item)); setEditing(null); }
+    catch (error) { Alert.alert('Could not update entry', error instanceof Error ? error.message : 'Your journal remains unchanged.'); }
+  };
+
+  const remove = (entry: JournalEntry) => Alert.alert('Delete this entry?', 'This permanently removes it from its Markdown file.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: async () => {
+      try { if (folder) await deleteEntry(folder, entry); setEntries(current => current.filter(item => item.id !== entry.id)); }
+      catch (error) { Alert.alert('Could not delete entry', error instanceof Error ? error.message : 'Your journal remains unchanged.'); }
+    } },
+  ]);
+
+  const setPreference = async (nextTheme: ThemePreference) => { setTheme(nextTheme); if (folder) await saveSettings({ folderUri: folder, theme: nextTheme }); };
+  const exportMarkdown = async () => {
+    if (!folder) return;
+    try {
+      const output = `${FileSystem.cacheDirectory}MindLog-export.txt`;
+      const summary = entries.map(entry => `# ${new Date(entry.createdAt).toLocaleDateString()} - ${displayTime(entry.createdAt)}\n\n${entry.content}`).join('\n\n---\n\n');
+      await FileSystem.writeAsStringAsync(output, summary);
+      await Sharing.shareAsync(output, { mimeType: 'text/plain', dialogTitle: 'Export MindLog journal' });
+    } catch (error) { Alert.alert('Export failed', error instanceof Error ? error.message : 'Try again.'); }
+  };
+
+  if (loading) return <View style={[styles.center, { backgroundColor: c.bg }]}><ActivityIndicator color={c.accent} /></View>;
+  if (!folder) return <Onboarding c={c} choose={chooseFolder} />;
+
+  const edit = (entry: JournalEntry) => { setEditing(entry); setEditText(entry.content); };
+  return <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
+    <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />
+    {screen === 'journal' && <Journal c={c} draft={draft} setDraft={setDraft} save={save} saving={saving} entries={entries} onEdit={edit} onDelete={remove} />}
+    {screen === 'search' && <Search c={c} entries={entries} onEdit={edit} onDelete={remove} />}
+    {screen === 'settings' && <Settings c={c} folder={folder} theme={theme} setTheme={setPreference} choose={chooseFolder} exportJournal={exportMarkdown} />}
+    <Nav c={c} screen={screen} setScreen={setScreen} />
+    <Modal visible={!!editing} animationType="slide" transparent>
+      <View style={styles.modalShade}><View style={[styles.modal, { backgroundColor: c.card, borderColor: c.line }]}>
+        <View style={styles.modalTop}><Text style={[styles.modalTitle, { color: c.text }]}>Edit post</Text><Pressable onPress={() => setEditing(null)}><Text style={[styles.close, { color: c.muted }]}>X</Text></Pressable></View>
+        <TextInput value={editText} onChangeText={setEditText} multiline autoFocus style={[styles.editor, { color: c.text, borderColor: c.line }]} placeholderTextColor={c.muted} />
+        <Pressable onPress={submitEdit} style={[styles.postButton, { backgroundColor: c.accent }]}><Text style={styles.postButtonText}>Save</Text></Pressable>
+      </View></View>
+    </Modal>
+  </SafeAreaView>;
 }
-const Onboarding=({c,choose}:{c:any,choose:()=>void})=><SafeAreaView style={[styles.onboard,{backgroundColor:c.bg}]}><Text style={[styles.brand,{color:c.text}]}>MindLog</Text><Text style={[styles.tagline,{color:c.muted}]}>Your thoughts. Your timeline. Your device.</Text><View style={styles.grow}/><Text style={[styles.onTitle,{color:c.text}]}>Choose Journal Location</Text><Text style={[styles.copy,{color:c.muted}]}>MindLog stores Markdown files in a folder you control. No account, tracking, or cloud is required.</Text><Pressable style={[styles.primary,{backgroundColor:c.accent}]} onPress={choose}><Text style={styles.primaryText}>Choose journal folder</Text></Pressable><Text style={[styles.fine,{color:c.muted}]}>Recommended: Documents/MindLog</Text></SafeAreaView>;
-const Journal=({c,draft,setDraft,save,saving,entries,onEdit,onDelete}:any)=><View style={styles.page}><Text style={[styles.brand,{color:c.text}]}>MindLog</Text><Text style={[styles.prompt,{color:c.text}]}>What’s on your mind?</Text><TextInput value={draft} onChangeText={setDraft} multiline placeholder="Write without overthinking…" placeholderTextColor={c.muted} style={[styles.composer,{color:c.text,backgroundColor:c.card,borderColor:c.line}]}/><Pressable disabled={saving} onPress={save} style={[styles.save,{backgroundColor:c.accent,opacity:saving?.6:1}]}><Text style={styles.primaryText}>{saving?'Saving…':'Save'}</Text></Pressable><Timeline c={c} entries={entries} onEdit={onEdit} onDelete={onDelete}/></View>;
-const Timeline=({c,entries,onEdit,onDelete}:any)=> <FlatList data={entries} keyExtractor={(e:JournalEntry)=>e.id} contentContainerStyle={styles.timeline} ListEmptyComponent={<Text style={[styles.empty,{color:c.muted}]}>Your private timeline is ready. Capture your first thought above.</Text>} renderItem={({item})=><Entry c={c} entry={item} onEdit={onEdit} onDelete={onDelete}/>}/>;
-const Entry=({c,entry,onEdit,onDelete}:any)=><Pressable onLongPress={()=>Alert.alert('Entry actions',undefined,[{text:'Edit',onPress:()=>onEdit(entry)},{text:'Delete',style:'destructive',onPress:()=>onDelete(entry)},{text:'Cancel',style:'cancel'}])} style={[styles.entry,{borderBottomColor:c.line}]}><Text style={[styles.entryDate,{color:c.muted}]}>{displayDate(entry.createdAt).toUpperCase()} · {displayTime(entry.createdAt)}</Text><Text style={[styles.content,{color:c.text}]}>{entry.content}</Text>{entry.updatedAt&&<Text style={[styles.edited,{color:c.muted}]}>Edited</Text>}</Pressable>;
-const Search=({c,entries,onEdit,onDelete}:any)=>{const[q,setQ]=useState('');const found=useMemo(()=>entries.filter((e:JournalEntry)=>e.content.toLocaleLowerCase().includes(q.toLocaleLowerCase())),[q,entries]);return <View style={styles.page}><Text style={[styles.title,{color:c.text}]}>Search your thoughts</Text><TextInput autoFocus value={q} onChangeText={setQ} placeholder="Search…" placeholderTextColor={c.muted} style={[styles.search,{color:c.text,backgroundColor:c.card,borderColor:c.line}]}/><Timeline c={c} entries={q?found:[]} onEdit={onEdit} onDelete={onDelete}/></View>};
-const Settings=({c,folder,theme,setTheme,choose,exportJournal}:any)=><View style={styles.page}><Text style={[styles.title,{color:c.text}]}>Settings</Text><Text style={[styles.section,{color:c.muted}]}>APPEARANCE</Text>{(['system','light','dark'] as ThemePreference[]).map(t=><Pressable key={t} style={styles.row} onPress={()=>setTheme(t)}><Text style={[styles.rowText,{color:c.text}]}>{theme===t?'◉':'○'}  {t[0].toUpperCase()+t.slice(1)}</Text></Pressable>)}<Text style={[styles.section,{color:c.muted}]}>JOURNAL STORAGE</Text><Text numberOfLines={1} style={[styles.path,{color:c.muted}]}>📁 {decodeURIComponent(folder)}</Text><Pressable onPress={choose}><Text style={{color:c.accent,fontWeight:'700'}}>Change folder</Text></Pressable><Text style={[styles.section,{color:c.muted}]}>DATA</Text><Pressable style={styles.row} onPress={exportJournal}><Text style={[styles.rowText,{color:c.text}]}>Export journal</Text><Text style={{color:c.muted}}>Markdown share file</Text></Pressable><Text style={[styles.section,{color:c.muted}]}>SYNC</Text><Text style={[styles.copy,{color:c.muted}]}>Google Drive and OneDrive are intentionally not connected in version 1. Your journal remains entirely on this device.</Text><Text style={[styles.section,{color:c.muted}]}>ABOUT</Text><Text style={[styles.rowText,{color:c.text}]}>MindLog 1.0.0</Text></View>;
-const Nav=({c,screen,setScreen}:any)=><View style={[styles.nav,{backgroundColor:c.card,borderTopColor:c.line}]}>{([['journal','⌂','Journal'],['search','⌕','Search'],['settings','⚙','Settings']] as const).map(([id,icon,label])=><Pressable key={id} style={styles.navItem} onPress={()=>setScreen(id)}><Text style={{color:screen===id?c.accent:c.muted,fontSize:21}}>{icon}</Text><Text style={{color:screen===id?c.accent:c.muted,fontSize:11}}>{label}</Text></Pressable>)}</View>;
-const colors=(dark:boolean)=>dark?{bg:'#101311',card:'#181d19',text:'#f1f4ef',muted:'#9ca59d',line:'#2d352f',accent:'#77b98a'}:{bg:'#fafbf8',card:'#ffffff',text:'#172019',muted:'#68736b',line:'#e3e8e3',accent:'#287542'};
-const styles=StyleSheet.create({safe:{flex:1},center:{flex:1,alignItems:'center',justifyContent:'center'},page:{flex:1,paddingHorizontal:20,paddingTop:20},onboard:{flex:1,padding:28},brand:{fontSize:30,fontWeight:'700',letterSpacing:-1},tagline:{fontSize:17,marginTop:7},grow:{flex:1},onTitle:{fontSize:24,fontWeight:'700'},copy:{fontSize:15,lineHeight:22,marginTop:10},primary:{padding:16,borderRadius:12,alignItems:'center',marginTop:25},primaryText:{color:'white',fontWeight:'700',textTransform:'uppercase',letterSpacing:.6},fine:{fontSize:12,textAlign:'center',marginTop:13},prompt:{fontSize:18,fontWeight:'600',marginTop:24,marginBottom:10},composer:{minHeight:105,maxHeight:190,borderWidth:1,borderRadius:12,padding:14,fontSize:16,textAlignVertical:'top'},save:{alignSelf:'flex-end',marginTop:10,paddingVertical:11,paddingHorizontal:22,borderRadius:9},timeline:{paddingTop:20,paddingBottom:110},entry:{paddingVertical:18,borderBottomWidth:1},entryDate:{fontSize:12,fontWeight:'700',letterSpacing:.35},content:{fontSize:16,lineHeight:24,marginTop:8},edited:{fontSize:12,marginTop:8},empty:{paddingVertical:30,lineHeight:22,textAlign:'center'},title:{fontSize:28,fontWeight:'700',letterSpacing:-.5},search:{borderWidth:1,borderRadius:11,padding:13,fontSize:16,marginTop:18},section:{fontSize:12,fontWeight:'700',letterSpacing:1,marginTop:28,marginBottom:11},row:{paddingVertical:9,flexDirection:'row',justifyContent:'space-between'},rowText:{fontSize:16},path:{marginBottom:12,fontSize:13},nav:{height:64,borderTopWidth:1,flexDirection:'row',justifyContent:'space-around'},navItem:{flex:1,alignItems:'center',justifyContent:'center'},modalShade:{flex:1,backgroundColor:'#0008',justifyContent:'flex-end'},modal:{padding:22,borderTopLeftRadius:22,borderTopRightRadius:22},modalTitle:{fontSize:20,fontWeight:'700'},editor:{minHeight:150,borderWidth:1,borderRadius:10,padding:12,textAlignVertical:'top',fontSize:16,marginTop:16},actions:{flexDirection:'row',justifyContent:'space-between',marginTop:18}});
+
+const Avatar = ({ size = 42 }: { size?: number }) => <Image source={avatar} style={{ width: size, height: size, borderRadius: size / 2 }} />;
+
+const Onboarding = ({ c, choose }: { c: any; choose: () => void }) => <SafeAreaView style={[styles.onboard, { backgroundColor: c.bg }]}>
+  <View style={[styles.onboardMark, { backgroundColor: c.accent }]}><Text style={styles.onboardMarkText}>m</Text></View>
+  <Text style={[styles.onboardTitle, { color: c.text }]}>Your thoughts, in your timeline.</Text>
+  <Text style={[styles.onboardCopy, { color: c.muted }]}>MindLog saves private Markdown files in a folder you choose. No account. No tracking. No cloud.</Text>
+  <View style={styles.grow} />
+  <Pressable style={[styles.primary, { backgroundColor: c.accent }]} onPress={choose}><Text style={styles.primaryText}>Choose journal folder</Text></Pressable>
+  <Text style={[styles.fine, { color: c.muted }]}>Recommended: Documents/MindLog</Text>
+</SafeAreaView>;
+
+const ProfileHeader = ({ c, entries }: { c: any; entries: JournalEntry[] }) => <View style={[styles.profile, { borderBottomColor: c.line }]}>
+  <View style={[styles.cover, { backgroundColor: c.cover }]} />
+  <View style={styles.profileBody}>
+    <View style={[styles.profileAvatar, { borderColor: c.bg }]}><Avatar size={76} /></View>
+    <View style={[styles.profileStatus, { borderColor: c.line }]}><Text style={[styles.profileStatusText, { color: c.text }]}>Private journal</Text></View>
+    <Text style={[styles.profileName, { color: c.text }]}>My MindLog</Text>
+    <Text style={[styles.handle, { color: c.muted }]}>@privatejournal</Text>
+    <Text style={[styles.bio, { color: c.text }]}>Small notes from the day. Kept on this device.</Text>
+    <View style={styles.stats}><Text style={[styles.stat, { color: c.text }]}><Text style={styles.statNumber}>{entries.length}</Text> posts</Text><Text style={[styles.stat, { color: c.text }]}><Text style={styles.statNumber}>Private</Text> journal</Text></View>
+  </View>
+</View>;
+
+const Journal = ({ c, draft, setDraft, save, saving, entries, onEdit, onDelete }: any) => <View style={styles.page}>
+  <View style={[styles.topBar, { borderBottomColor: c.line }]}><Text style={[styles.topBarTitle, { color: c.text }]}>MindLog</Text><View style={[styles.composeIcon, { backgroundColor: c.accent }]}><Text style={styles.composeIconText}>+</Text></View></View>
+  <FlatList data={entries} keyExtractor={(entry: JournalEntry) => entry.id} contentContainerStyle={styles.timeline}
+    ListHeaderComponent={<><ProfileHeader c={c} entries={entries} /><Composer c={c} draft={draft} setDraft={setDraft} save={save} saving={saving} /><Text style={[styles.feedHeading, { color: c.text, borderBottomColor: c.line }]}>Posts</Text></>}
+    ListEmptyComponent={<Text style={[styles.empty, { color: c.muted }]}>Your timeline is waiting for its first thought.</Text>}
+    renderItem={({ item }) => <Entry c={c} entry={item} onEdit={onEdit} onDelete={onDelete} />} />
+</View>;
+
+const Composer = ({ c, draft, setDraft, save, saving }: any) => <View style={[styles.composerWrap, { borderBottomColor: c.line }]}>
+  <Avatar /><View style={styles.composerMain}><TextInput value={draft} onChangeText={setDraft} multiline placeholder="What is happening?" placeholderTextColor={c.muted} style={[styles.composer, { color: c.text }]} />
+    <View style={[styles.composerActions, { borderTopColor: c.line }]}><Text style={[styles.audience, { color: c.accent }]}>Only you can see this</Text><Pressable disabled={saving || !draft.trim()} onPress={save} style={[styles.postButton, { backgroundColor: c.accent, opacity: saving || !draft.trim() ? 0.45 : 1 }]}><Text style={styles.postButtonText}>{saving ? 'Posting...' : 'Post'}</Text></Pressable></View>
+  </View>
+</View>;
+
+const Entry = ({ c, entry, onEdit, onDelete }: any) => <Pressable onLongPress={() => Alert.alert('Post actions', undefined, [{ text: 'Edit', onPress: () => onEdit(entry) }, { text: 'Delete', style: 'destructive', onPress: () => onDelete(entry) }, { text: 'Cancel', style: 'cancel' }])} style={[styles.entry, { borderBottomColor: c.line }]}>
+  <Avatar /><View style={styles.entryMain}><View style={styles.entryMeta}><Text style={[styles.entryName, { color: c.text }]}>My MindLog</Text><Text style={[styles.entryHandle, { color: c.muted }]}>@privatejournal</Text><Text style={[styles.entryHandle, { color: c.muted }]}>{displayTime(entry.createdAt)}</Text></View>
+    <Text style={[styles.content, { color: c.text }]}>{entry.content}</Text>
+    <View style={styles.entryActions}><Text style={[styles.action, { color: c.muted }]}>Reply</Text><Text style={[styles.action, { color: c.muted }]}>Repost</Text><Text style={[styles.action, { color: c.muted }]}>Like</Text>{entry.updatedAt && <Text style={[styles.edited, { color: c.muted }]}>Edited</Text>}</View>
+  </View>
+</Pressable>;
+
+const Timeline = ({ c, entries, onEdit, onDelete }: any) => <FlatList data={entries} keyExtractor={(entry: JournalEntry) => entry.id} contentContainerStyle={styles.timeline} ListEmptyComponent={<Text style={[styles.empty, { color: c.muted }]}>No posts found.</Text>} renderItem={({ item }) => <Entry c={c} entry={item} onEdit={onEdit} onDelete={onDelete} />} />;
+
+const Search = ({ c, entries, onEdit, onDelete }: any) => {
+  const [query, setQuery] = useState('');
+  const found = useMemo(() => entries.filter((entry: JournalEntry) => entry.content.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [query, entries]);
+  return <View style={styles.page}><View style={[styles.topBar, { borderBottomColor: c.line }]}><Text style={[styles.topBarTitle, { color: c.text }]}>Search</Text></View><TextInput autoFocus value={query} onChangeText={setQuery} placeholder="Search posts" placeholderTextColor={c.muted} style={[styles.search, { color: c.text, backgroundColor: c.elevated }]} /><Timeline c={c} entries={query ? found : []} onEdit={onEdit} onDelete={onDelete} /></View>;
+};
+
+const Settings = ({ c, folder, theme, setTheme, choose, exportJournal }: any) => <View style={styles.page}><View style={[styles.topBar, { borderBottomColor: c.line }]}><Text style={[styles.topBarTitle, { color: c.text }]}>Settings</Text></View><View style={styles.settingsContent}>
+  <Text style={[styles.section, { color: c.muted }]}>APPEARANCE</Text>{(['system', 'light', 'dark'] as ThemePreference[]).map(item => <Pressable key={item} style={[styles.row, { borderBottomColor: c.line }]} onPress={() => setTheme(item)}><Text style={[styles.rowText, { color: c.text }]}>{item[0].toUpperCase() + item.slice(1)}</Text><Text style={[styles.selection, { color: theme === item ? c.accent : c.muted }]}>{theme === item ? 'Selected' : ''}</Text></Pressable>)}
+  <Text style={[styles.section, { color: c.muted }]}>JOURNAL STORAGE</Text><Text numberOfLines={1} style={[styles.path, { color: c.muted }]}>{decodeURIComponent(folder)}</Text><Pressable onPress={choose}><Text style={[styles.link, { color: c.accent }]}>Change folder</Text></Pressable>
+  <Text style={[styles.section, { color: c.muted }]}>DATA</Text><Pressable style={[styles.row, { borderBottomColor: c.line }]} onPress={exportJournal}><Text style={[styles.rowText, { color: c.text }]}>Export journal</Text><Text style={[styles.selection, { color: c.muted }]}>Markdown</Text></Pressable>
+  <Text style={[styles.section, { color: c.muted }]}>ABOUT</Text><Text style={[styles.rowText, { color: c.text }]}>MindLog 1.0.0</Text>
+</View></View>;
+
+const Nav = ({ c, screen, setScreen }: any) => <View style={[styles.nav, { backgroundColor: c.bg, borderTopColor: c.line }]}>{([['journal', 'Home'], ['search', 'Search'], ['settings', 'Settings']] as const).map(([id, label]) => <Pressable key={id} accessibilityRole="button" style={styles.navItem} onPress={() => setScreen(id)}><View style={[styles.navDot, { backgroundColor: screen === id ? c.accent : 'transparent' }]} /><Text style={{ color: screen === id ? c.text : c.muted, fontSize: 12, fontWeight: screen === id ? '700' : '500' }}>{label}</Text></Pressable>)}</View>;
+
+const colors = (dark: boolean) => dark
+  ? { bg: '#000000', card: '#000000', elevated: '#16181c', text: '#f7f9f9', muted: '#8b98a5', line: '#2f3336', accent: '#1d9bf0', cover: '#163654' }
+  : { bg: '#ffffff', card: '#ffffff', elevated: '#eff3f4', text: '#0f1419', muted: '#536471', line: '#eff3f4', accent: '#1d9bf0', cover: '#9bd7ff' };
+
+const styles = StyleSheet.create({
+  safe: { flex: 1 }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' }, page: { flex: 1 }, onboard: { flex: 1, padding: 28 }, onboardMark: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginTop: 36 }, onboardMarkText: { color: '#fff', fontSize: 30, fontWeight: '800' }, onboardTitle: { fontSize: 32, lineHeight: 39, fontWeight: '800', marginTop: 28 }, onboardCopy: { fontSize: 16, lineHeight: 24, marginTop: 14 }, grow: { flex: 1 }, primary: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' }, primaryText: { color: '#fff', fontWeight: '800', fontSize: 15 }, fine: { fontSize: 12, textAlign: 'center', marginTop: 14 }, topBar: { minHeight: 52, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth }, topBarTitle: { fontSize: 20, fontWeight: '800' }, composeIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }, composeIconText: { color: '#fff', fontSize: 24, lineHeight: 28 }, timeline: { paddingBottom: 84 }, profile: { borderBottomWidth: StyleSheet.hairlineWidth }, cover: { height: 112 }, profileBody: { paddingHorizontal: 16, paddingBottom: 15 }, profileAvatar: { position: 'absolute', top: -40, left: 16, borderWidth: 4, borderRadius: 42 }, profileStatus: { alignSelf: 'flex-end', borderWidth: 1, borderRadius: 18, paddingVertical: 7, paddingHorizontal: 15, marginTop: 10 }, profileStatusText: { fontSize: 14, fontWeight: '700' }, profileName: { fontSize: 20, fontWeight: '800', marginTop: 6 }, handle: { fontSize: 14, marginTop: 1 }, bio: { fontSize: 15, lineHeight: 20, marginTop: 12 }, stats: { flexDirection: 'row', gap: 18, marginTop: 12 }, stat: { fontSize: 14 }, statNumber: { fontWeight: '800' }, composerWrap: { flexDirection: 'row', gap: 11, paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth }, composerMain: { flex: 1 }, composer: { minHeight: 64, maxHeight: 150, fontSize: 18, lineHeight: 24, padding: 0, textAlignVertical: 'top' }, composerActions: { minHeight: 42, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, audience: { fontSize: 13, fontWeight: '700' }, postButton: { minHeight: 34, paddingHorizontal: 18, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }, postButtonText: { color: '#fff', fontSize: 14, fontWeight: '800' }, feedHeading: { paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, fontWeight: '800', borderBottomWidth: StyleSheet.hairlineWidth }, entry: { flexDirection: 'row', gap: 11, paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth }, entryMain: { flex: 1 }, entryMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }, entryName: { fontSize: 15, fontWeight: '800' }, entryHandle: { fontSize: 14 }, content: { fontSize: 16, lineHeight: 22, marginTop: 2 }, entryActions: { flexDirection: 'row', justifyContent: 'space-between', maxWidth: 250, marginTop: 11 }, action: { fontSize: 12 }, edited: { fontSize: 12 }, empty: { textAlign: 'center', paddingVertical: 36, paddingHorizontal: 32, lineHeight: 21 }, search: { margin: 12, height: 42, borderRadius: 21, paddingHorizontal: 17, fontSize: 16 }, settingsContent: { paddingHorizontal: 16 }, section: { fontSize: 12, fontWeight: '800', letterSpacing: 0.7, marginTop: 25, marginBottom: 8 }, row: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth }, rowText: { fontSize: 16 }, selection: { fontSize: 13 }, path: { fontSize: 13, marginBottom: 11 }, link: { fontSize: 15, fontWeight: '700' }, nav: { height: 64, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row' }, navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 }, navDot: { width: 20, height: 3, borderRadius: 2 }, modalShade: { flex: 1, backgroundColor: '#000a', justifyContent: 'flex-end' }, modal: { padding: 20, borderTopWidth: StyleSheet.hairlineWidth, borderTopLeftRadius: 20, borderTopRightRadius: 20 }, modalTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, modalTitle: { fontSize: 20, fontWeight: '800' }, close: { fontSize: 18, fontWeight: '700', padding: 4 }, editor: { minHeight: 160, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: 12, textAlignVertical: 'top', fontSize: 16, marginTop: 16, marginBottom: 16 },
+});
