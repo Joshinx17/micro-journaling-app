@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "MindLog", "slug": "mindlog", "version": "1.0.0", "orientation": "portrait",
+    "name": "MindLog", "slug": "mindlog", "version": "1.1.0", "orientation": "portrait",
     "android": { "package": "com.mindlog.app", "permissions": [] },
     "plugins": ["expo-document-picker"],
     "userInterfaceStyle": "automatic"
