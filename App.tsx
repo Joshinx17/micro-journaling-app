@@ -12,7 +12,6 @@ type Screen = 'journal' | 'search' | 'settings';
 type Palette = ReturnType<typeof colors>;
 type EntryAction = (entry: JournalEntry) => void;
 type EntryListProps = { c: Palette; entries: JournalEntry[]; photoUri?: string; onEdit: EntryAction; onDelete: EntryAction };
-const avatar = require('./assets/mindlog-avatar.png');
 
 export default function App() {
   const system = useColorScheme();
@@ -86,6 +85,14 @@ export default function App() {
     setSaving(false);
   };
 
+  const discardDraft = () => Alert.alert('Discard this draft?', 'This unsaved thought will be removed from this device.', [
+    { text: 'Keep writing', style: 'cancel' },
+    { text: 'Discard', style: 'destructive', onPress: async () => {
+      try { await clearDraft(); setDraft(''); }
+      catch { Alert.alert('Could not discard draft', 'Please try again.'); }
+    } },
+  ]);
+
   const submitEdit = async () => {
     if (!editing || !folder) return;
     try { await updateEntry(folder, editing, editText); await refresh(folder); setEditing(null); }
@@ -130,7 +137,7 @@ export default function App() {
   const edit = (entry: JournalEntry) => { setEditing(entry); setEditText(entry.content); };
   return <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
     <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />
-    {screen === 'journal' && <Journal c={c} draft={draft} setDraft={setDraft} save={save} saving={saving} entries={entries} profilePhotoUri={profilePhotoUri} chooseProfilePhoto={chooseProfilePhoto} onEdit={edit} onDelete={remove} />}
+    {screen === 'journal' && <Journal c={c} draft={draft} setDraft={setDraft} save={save} discardDraft={discardDraft} saving={saving} entries={entries} profilePhotoUri={profilePhotoUri} chooseProfilePhoto={chooseProfilePhoto} onEdit={edit} onDelete={remove} />}
     {screen === 'search' && <Search c={c} entries={entries} photoUri={profilePhotoUri} onEdit={edit} onDelete={remove} />}
     {screen === 'settings' && <Settings c={c} folder={folder} theme={theme} setTheme={setPreference} choose={chooseFolder} exportJournal={exportMarkdown} />}
     <Nav c={c} screen={screen} setScreen={setScreen} />
@@ -144,7 +151,11 @@ export default function App() {
   </SafeAreaView>;
 }
 
-const Avatar = ({ photoUri, size = 42 }: { photoUri?: string; size?: number }) => <Image source={photoUri ? { uri: photoUri } : avatar} style={{ width: size, height: size, borderRadius: size / 2 }} />;
+const Avatar = ({ photoUri, size = 42 }: { photoUri?: string; size?: number }) => photoUri
+  ? <Image source={{ uri: photoUri }} style={{ width: size, height: size, borderRadius: size / 2 }} />
+  : <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#163654', alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ color: '#fff', fontSize: size * 0.56, fontWeight: '800' }}>m</Text>
+    </View>;
 
 const Onboarding = ({ c, choose }: { c: Palette; choose: () => void }) => <SafeAreaView style={[styles.onboard, { backgroundColor: c.bg }]}>
   <View style={[styles.onboardMark, { backgroundColor: c.accent }]}><Text style={styles.onboardMarkText}>m</Text></View>
@@ -166,17 +177,17 @@ const ProfileHeader = ({ c, entries, photoUri, chooseProfilePhoto }: { c: Palett
   </View>
 </View>;
 
-const Journal = ({ c, draft, setDraft, save, saving, entries, profilePhotoUri, chooseProfilePhoto, onEdit, onDelete }: Omit<EntryListProps, 'photoUri'> & { draft: string; setDraft: (value: string) => void; save: () => void; saving: boolean; profilePhotoUri?: string; chooseProfilePhoto: () => void }) => <View style={styles.page}>
+const Journal = ({ c, draft, setDraft, save, discardDraft, saving, entries, profilePhotoUri, chooseProfilePhoto, onEdit, onDelete }: Omit<EntryListProps, 'photoUri'> & { draft: string; setDraft: (value: string) => void; save: () => void; discardDraft: () => void; saving: boolean; profilePhotoUri?: string; chooseProfilePhoto: () => void }) => <View style={styles.page}>
   <View style={[styles.topBar, { borderBottomColor: c.line }]}><Text style={[styles.topBarTitle, { color: c.text }]}>MindLog</Text><View style={[styles.composeIcon, { backgroundColor: c.accent }]}><Text style={styles.composeIconText}>+</Text></View></View>
   <FlatList data={entries} keyExtractor={(entry: JournalEntry) => entry.id} contentContainerStyle={styles.timeline}
-    ListHeaderComponent={<><ProfileHeader c={c} entries={entries} photoUri={profilePhotoUri} chooseProfilePhoto={chooseProfilePhoto} /><Composer c={c} photoUri={profilePhotoUri} draft={draft} setDraft={setDraft} save={save} saving={saving} /><Text style={[styles.feedHeading, { color: c.text, borderBottomColor: c.line }]}>Posts</Text></>}
+    ListHeaderComponent={<><ProfileHeader c={c} entries={entries} photoUri={profilePhotoUri} chooseProfilePhoto={chooseProfilePhoto} /><Composer c={c} photoUri={profilePhotoUri} draft={draft} setDraft={setDraft} save={save} discardDraft={discardDraft} saving={saving} /><Text style={[styles.feedHeading, { color: c.text, borderBottomColor: c.line }]}>Posts</Text></>}
     ListEmptyComponent={<Text style={[styles.empty, { color: c.muted }]}>Your timeline is waiting for its first thought.</Text>}
     renderItem={({ item }) => <Entry c={c} entry={item} photoUri={profilePhotoUri} onEdit={onEdit} onDelete={onDelete} />} />
 </View>;
 
-const Composer = ({ c, photoUri, draft, setDraft, save, saving }: { c: Palette; photoUri?: string; draft: string; setDraft: (value: string) => void; save: () => void; saving: boolean }) => <View style={[styles.composerWrap, { borderBottomColor: c.line }]}>
+const Composer = ({ c, photoUri, draft, setDraft, save, discardDraft, saving }: { c: Palette; photoUri?: string; draft: string; setDraft: (value: string) => void; save: () => void; discardDraft: () => void; saving: boolean }) => <View style={[styles.composerWrap, { borderBottomColor: c.line }]}>
   <Avatar photoUri={photoUri} /><View style={styles.composerMain}><TextInput value={draft} onChangeText={setDraft} multiline placeholder="Write a thought" placeholderTextColor={c.muted} style={[styles.composer, { color: c.text }]} />
-    <View style={[styles.composerActions, { borderTopColor: c.line }]}><Text style={[styles.audience, { color: c.accent }]}>Only you can see this</Text><Pressable accessibilityRole="button" accessibilityLabel="Save thought" disabled={saving || !draft.trim()} onPress={save} style={[styles.postButton, { backgroundColor: c.accent, opacity: saving || !draft.trim() ? 0.45 : 1 }]}><Text style={styles.postButtonText}>{saving ? 'Saving...' : 'Save'}</Text></Pressable></View>
+    <View style={[styles.composerActions, { borderTopColor: c.line }]}><Text style={[styles.audience, { color: c.accent }]}>Only you</Text>{!!draft && <Pressable accessibilityRole="button" accessibilityLabel="Discard draft" onPress={discardDraft} hitSlop={8}><Text style={[styles.action, { color: c.muted }]}>Discard</Text></Pressable>}<Pressable accessibilityRole="button" accessibilityLabel="Save thought" disabled={saving || !draft.trim()} onPress={save} style={[styles.postButton, { backgroundColor: c.accent, opacity: saving || !draft.trim() ? 0.45 : 1 }]}><Text style={styles.postButtonText}>{saving ? 'Saving...' : 'Save'}</Text></Pressable></View>
   </View>
 </View>;
 

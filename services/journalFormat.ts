@@ -10,7 +10,8 @@ export const appendEntry = (text: string, entry: JournalEntry): string =>
 
 export function parseJournal(text: string, date: string, fileVersion?: string): JournalEntry[] {
   const entries: JournalEntry[] = [];
-  const headerTimezone = text.match(/^timezone:\s*(.+)$/m)?.[1]?.trim();
+  const frontmatter = text.startsWith('---\n') ? text.split(/\n---\s*\n/, 2)[0] : '';
+  const headerTimezone = frontmatter.match(/^timezone:\s*(.+)$/m)?.[1]?.trim();
   const seen = new Set<string>();
   for (const match of text.matchAll(marker)) {
     const [, id, createdAt, updatedAt, timezone, content] = match;

@@ -24,6 +24,8 @@ test('parses empty and multiline Markdown with stable timezone', () => {
 test('retains legacy entry timezone from header instead of current device', () => {
   const legacy = `---\ntimezone: America/New_York\n---\n\n<!-- mindlog-entry-id: old -->\n<!-- created: 2025-11-02T01:30:00-04:00 -->\nlegacy\n<!-- /mindlog-entry -->`;
   assert.equal(parseJournal(legacy, '2025-11-02')[0].timezone, 'America/New_York');
+  const withoutHeader = legacy.replace('timezone: America/New_York\n', '');
+  assert.equal(parseJournal(withoutHeader, '2025-11-02')[0].timezone, '-04:00');
 });
 
 test('editing and deleting one entry preserve the other', () => {
