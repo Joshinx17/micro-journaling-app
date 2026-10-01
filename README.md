@@ -1,5 +1,7 @@
 # MindLog
 
+Current engineering details: [Architecture](ARCHITECTURE.md) · [Journal format](JOURNAL_FORMAT.md). Run `npm run typecheck` and `npm test` before an Android build. Full vault archive export and in-app restore are still planned; copy the entire selected vault folder for a complete backup today.
+
 ### Your thoughts. Your files. Your privacy.
 
 **MindLog** is a privacy-first, offline-first micro-journaling application for Android, designed for people who want to capture the small moments, thoughts, ideas, observations, emotions, and events of everyday life without turning their personal journal into someone else's cloud data.
