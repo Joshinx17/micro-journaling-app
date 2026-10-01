@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, FlatList, Image, Modal, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -22,6 +22,8 @@ export default function App() {
   const [profilePhotoUri, setProfilePhotoUri] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftWrite = useRef<Promise<void>>(Promise.resolve());
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<JournalEntry | null>(null);
   const [editText, setEditText] = useState('');
@@ -45,14 +47,20 @@ export default function App() {
 
   useEffect(() => {
     if (loading) return;
-    const timer = setTimeout(() => { void saveDraft(draft).catch(() => Alert.alert('Draft not saved', 'Keep MindLog open until you can save this thought.')); }, 450);
+    const timer = setTimeout(() => {
+      draftWrite.current = draftWrite.current.catch(() => {}).then(() => saveDraft(draft));
+      void draftWrite.current.catch(() => Alert.alert('Draft not saved', 'Keep MindLog open until you can save this thought.'));
+    }, 450);
+    draftTimer.current = timer;
     return () => clearTimeout(timer);
   }, [draft, loading]);
 
   useEffect(() => {
     const listener = AppState.addEventListener('change', state => {
       if (state === 'active' && folder) void refresh(folder);
-      if (state !== 'active' && draft) void saveDraft(draft);
+      if (state !== 'active' && draft) {
+        draftWrite.current = draftWrite.current.catch(() => {}).then(() => saveDraft(draft));
+      }
     });
     return () => listener.remove();
   }, [folder, draft]);
@@ -78,6 +86,8 @@ export default function App() {
       setSaving(false);
       return;
     }
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    await draftWrite.current.catch(() => {});
     setDraft('');
     try { await clearDraft(); }
     catch { Alert.alert('Entry saved', 'The recovered draft could not be cleared from device storage.'); }
@@ -88,7 +98,11 @@ export default function App() {
   const discardDraft = () => Alert.alert('Discard this draft?', 'This unsaved thought will be removed from this device.', [
     { text: 'Keep writing', style: 'cancel' },
     { text: 'Discard', style: 'destructive', onPress: async () => {
-      try { await clearDraft(); setDraft(''); }
+      try {
+        if (draftTimer.current) clearTimeout(draftTimer.current);
+        await draftWrite.current.catch(() => {});
+        await clearDraft(); setDraft('');
+      }
       catch { Alert.alert('Could not discard draft', 'Please try again.'); }
     } },
   ]);
@@ -143,7 +157,7 @@ export default function App() {
     <Nav c={c} screen={screen} setScreen={setScreen} />
     <Modal visible={!!editing} animationType="slide" transparent>
       <View style={styles.modalShade}><View style={[styles.modal, { backgroundColor: c.card, borderColor: c.line }]}>
-        <View style={styles.modalTop}><Text style={[styles.modalTitle, { color: c.text }]}>Edit post</Text><Pressable onPress={() => setEditing(null)}><Text style={[styles.close, { color: c.muted }]}>X</Text></Pressable></View>
+        <View style={styles.modalTop}><Text style={[styles.modalTitle, { color: c.text }]}>Edit thought</Text><Pressable onPress={() => setEditing(null)}><Text style={[styles.close, { color: c.muted }]}>X</Text></Pressable></View>
         <TextInput value={editText} onChangeText={setEditText} multiline autoFocus style={[styles.editor, { color: c.text, borderColor: c.line }]} placeholderTextColor={c.muted} />
         <Pressable onPress={submitEdit} style={[styles.postButton, { backgroundColor: c.accent }]}><Text style={styles.postButtonText}>Save</Text></Pressable>
       </View></View>
@@ -173,21 +187,21 @@ const ProfileHeader = ({ c, entries, photoUri, chooseProfilePhoto }: { c: Palett
     <Pressable onPress={chooseProfilePhoto} style={[styles.profileStatus, { borderColor: c.line }]}><Text style={[styles.profileStatusText, { color: c.text }]}>Change photo</Text></Pressable>
     <Text style={[styles.profileName, { color: c.text }]}>My MindLog</Text>
     <Text style={[styles.bio, { color: c.text }]}>Small notes from the day. Kept on this device.</Text>
-    <View style={styles.stats}><Text style={[styles.stat, { color: c.text }]}><Text style={styles.statNumber}>{entries.length}</Text> posts</Text><Text style={[styles.stat, { color: c.text }]}><Text style={styles.statNumber}>Private</Text> journal</Text></View>
+    <View style={styles.stats}><Text style={[styles.stat, { color: c.text }]}><Text style={styles.statNumber}>{entries.length}</Text> thoughts</Text><Text style={[styles.stat, { color: c.text }]}><Text style={styles.statNumber}>Private</Text> journal</Text></View>
   </View>
 </View>;
 
 const Journal = ({ c, draft, setDraft, save, discardDraft, saving, entries, profilePhotoUri, chooseProfilePhoto, onEdit, onDelete }: Omit<EntryListProps, 'photoUri'> & { draft: string; setDraft: (value: string) => void; save: () => void; discardDraft: () => void; saving: boolean; profilePhotoUri?: string; chooseProfilePhoto: () => void }) => <View style={styles.page}>
   <View style={[styles.topBar, { borderBottomColor: c.line }]}><Text style={[styles.topBarTitle, { color: c.text }]}>MindLog</Text><View style={[styles.composeIcon, { backgroundColor: c.accent }]}><Text style={styles.composeIconText}>+</Text></View></View>
   <FlatList data={entries} keyExtractor={(entry: JournalEntry) => entry.id} contentContainerStyle={styles.timeline}
-    ListHeaderComponent={<><ProfileHeader c={c} entries={entries} photoUri={profilePhotoUri} chooseProfilePhoto={chooseProfilePhoto} /><Composer c={c} photoUri={profilePhotoUri} draft={draft} setDraft={setDraft} save={save} discardDraft={discardDraft} saving={saving} /><Text style={[styles.feedHeading, { color: c.text, borderBottomColor: c.line }]}>Posts</Text></>}
+    ListHeaderComponent={<><ProfileHeader c={c} entries={entries} photoUri={profilePhotoUri} chooseProfilePhoto={chooseProfilePhoto} /><Composer c={c} photoUri={profilePhotoUri} draft={draft} setDraft={setDraft} save={save} discardDraft={discardDraft} saving={saving} /><Text style={[styles.feedHeading, { color: c.text, borderBottomColor: c.line }]}>Thoughts</Text></>}
     ListEmptyComponent={<Text style={[styles.empty, { color: c.muted }]}>Your timeline is waiting for its first thought.</Text>}
     renderItem={({ item }) => <Entry c={c} entry={item} photoUri={profilePhotoUri} onEdit={onEdit} onDelete={onDelete} />} />
 </View>;
 
 const Composer = ({ c, photoUri, draft, setDraft, save, discardDraft, saving }: { c: Palette; photoUri?: string; draft: string; setDraft: (value: string) => void; save: () => void; discardDraft: () => void; saving: boolean }) => <View style={[styles.composerWrap, { borderBottomColor: c.line }]}>
   <Avatar photoUri={photoUri} /><View style={styles.composerMain}><TextInput value={draft} onChangeText={setDraft} multiline placeholder="Write a thought" placeholderTextColor={c.muted} style={[styles.composer, { color: c.text }]} />
-    <View style={[styles.composerActions, { borderTopColor: c.line }]}><Text style={[styles.audience, { color: c.accent }]}>Only you</Text>{!!draft && <Pressable accessibilityRole="button" accessibilityLabel="Discard draft" onPress={discardDraft} hitSlop={8}><Text style={[styles.action, { color: c.muted }]}>Discard</Text></Pressable>}<Pressable accessibilityRole="button" accessibilityLabel="Save thought" disabled={saving || !draft.trim()} onPress={save} style={[styles.postButton, { backgroundColor: c.accent, opacity: saving || !draft.trim() ? 0.45 : 1 }]}><Text style={styles.postButtonText}>{saving ? 'Saving...' : 'Save'}</Text></Pressable></View>
+    <View style={[styles.composerActions, { borderTopColor: c.line, gap: 10 }]}><Text style={[styles.audience, { color: c.accent, flex: 1 }]}>Only you</Text>{!!draft && <Pressable accessibilityRole="button" accessibilityLabel="Discard draft" onPress={discardDraft} hitSlop={8}><Text style={[styles.action, { color: c.muted }]}>Discard</Text></Pressable>}<Pressable accessibilityRole="button" accessibilityLabel="Save thought" disabled={saving || !draft.trim()} onPress={save} style={[styles.postButton, { backgroundColor: c.accent, opacity: saving || !draft.trim() ? 0.45 : 1 }]}><Text style={styles.postButtonText}>{saving ? 'Saving...' : 'Save'}</Text></Pressable></View>
   </View>
 </View>;
 
@@ -198,12 +212,12 @@ const Entry = ({ c, entry, photoUri, onEdit, onDelete }: { c: Palette; entry: Jo
   </View>
 </Pressable>;
 
-const Timeline = ({ c, entries, photoUri, onEdit, onDelete }: EntryListProps) => <FlatList data={entries} keyExtractor={(entry: JournalEntry) => entry.id} contentContainerStyle={styles.timeline} ListEmptyComponent={<Text style={[styles.empty, { color: c.muted }]}>No posts found.</Text>} renderItem={({ item }) => <Entry c={c} entry={item} photoUri={photoUri} onEdit={onEdit} onDelete={onDelete} />} />;
+const Timeline = ({ c, entries, photoUri, onEdit, onDelete }: EntryListProps) => <FlatList data={entries} keyExtractor={(entry: JournalEntry) => entry.id} contentContainerStyle={styles.timeline} ListEmptyComponent={<Text style={[styles.empty, { color: c.muted }]}>No thoughts found.</Text>} renderItem={({ item }) => <Entry c={c} entry={item} photoUri={photoUri} onEdit={onEdit} onDelete={onDelete} />} />;
 
 const Search = ({ c, entries, photoUri, onEdit, onDelete }: EntryListProps) => {
   const [query, setQuery] = useState('');
   const found = useMemo(() => entries.filter((entry: JournalEntry) => entry.content.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [query, entries]);
-  return <View style={styles.page}><View style={[styles.topBar, { borderBottomColor: c.line }]}><Text style={[styles.topBarTitle, { color: c.text }]}>Search</Text></View><TextInput autoFocus value={query} onChangeText={setQuery} placeholder="Search posts" placeholderTextColor={c.muted} style={[styles.search, { color: c.text, backgroundColor: c.elevated }]} /><Timeline c={c} entries={query ? found : []} photoUri={photoUri} onEdit={onEdit} onDelete={onDelete} /></View>;
+  return <View style={styles.page}><View style={[styles.topBar, { borderBottomColor: c.line }]}><Text style={[styles.topBarTitle, { color: c.text }]}>Search</Text></View><TextInput autoFocus value={query} onChangeText={setQuery} placeholder="Search thoughts" placeholderTextColor={c.muted} style={[styles.search, { color: c.text, backgroundColor: c.elevated }]} /><Timeline c={c} entries={query ? found : []} photoUri={photoUri} onEdit={onEdit} onDelete={onDelete} /></View>;
 };
 
 const Settings = ({ c, folder, theme, setTheme, choose, exportJournal }: { c: Palette; folder: string; theme: ThemePreference; setTheme: (value: ThemePreference) => void; choose: () => void; exportJournal: () => void }) => <View style={styles.page}><View style={[styles.topBar, { borderBottomColor: c.line }]}><Text style={[styles.topBarTitle, { color: c.text }]}>Settings</Text></View><View style={styles.settingsContent}>
