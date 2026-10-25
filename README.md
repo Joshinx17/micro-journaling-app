@@ -1,6 +1,14 @@
 # MindLog
 
-Current engineering details: [Architecture](ARCHITECTURE.md) · [Journal format](JOURNAL_FORMAT.md). Run `npm run typecheck` and `npm test` before an Android build. Full vault archive export and in-app restore are still planned; copy the entire selected vault folder for a complete backup today.
+Current engineering details: [Project history](PROJECT_HISTORY.md) · [Architecture](ARCHITECTURE.md) · [Journal format](JOURNAL_FORMAT.md) · [Reliability and validation](RELIABILITY.md). Run `npm run typecheck` and `npm test` before an Android build.
+
+### Current implementation status
+
+MindLog now has serialized in-app journal writes, protected composer drafts, corrupted-day isolation, daily revision recovery, and verified full-vault snapshots that restore into a new folder. Snapshot copies include Markdown, attachments, backups, recovery files, metadata, and other vault files; they do not include AsyncStorage drafts, device preferences, or the app-private profile photo. ZIP archive export, encryption, sync, and a large-journal index are not implemented.
+
+The current test suite has 20 passing tests covering journal parsing, concurrent writes, failed backups, interrupted writes, stale edits, damaged files, daily recovery, snapshot verification/restoration, hostile snapshot paths, and release-signing configuration. TypeScript checking passes. Android device testing, fresh-install restore testing, accessibility testing, release-size measurement, and a signed production build are still required.
+
+See [PROJECT_HISTORY.md](PROJECT_HISTORY.md) for the full project history and [RELIABILITY.md](RELIABILITY.md) for operational guarantees, exclusions, and device test steps.
 
 ### Your thoughts. Your files. Your privacy.
 

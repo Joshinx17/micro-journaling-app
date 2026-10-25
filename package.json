@@ -7,7 +7,7 @@
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types tests/journalFormat.test.ts",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:watch": "node --experimental-strip-types --test --watch tests/*.test.ts",
     "ios": "expo run:ios"
   },

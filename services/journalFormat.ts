@@ -10,16 +10,16 @@ export const appendEntry = (text: string, entry: JournalEntry): string =>
 
 export function parseJournal(text: string, date: string, fileVersion?: string): JournalEntry[] {
   const entries: JournalEntry[] = [];
-  const frontmatter = text.startsWith('---\n') ? text.split(/\n---\s*\n/, 2)[0] : '';
+  const frontmatter = text.match(/^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1] ?? '';
   const headerTimezone = frontmatter.match(/^timezone:\s*(.+)$/m)?.[1]?.trim();
   const seen = new Set<string>();
   for (const match of text.matchAll(marker)) {
     const [, id, createdAt, updatedAt, timezone, content] = match;
     if (seen.has(id)) throw new Error(`Duplicate journal entry ID in ${date}.`);
-    if (Number.isNaN(Date.parse(createdAt))) throw new Error(`Invalid journal timestamp in ${date}.`);
+    if (Number.isNaN(Date.parse(createdAt)) || (updatedAt && Number.isNaN(Date.parse(updatedAt)))) throw new Error(`Invalid journal timestamp in ${date}.`);
     seen.add(id);
     entries.push({
-      id, createdAt, updatedAt, date,
+      id, createdAt: createdAt.trim(), updatedAt: updatedAt?.trim(), date,
       timezone: timezone?.trim() || headerTimezone || createdAt.match(/([+-]\d{2}:\d{2}|Z)$/)?.[1] || 'UTC',
       content: content.replace(/<!\\-\\-/g, '<!--').trim(), fileVersion,
     });

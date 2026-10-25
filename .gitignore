@@ -3,4 +3,5 @@ node_modules/
 android/
 ios/
 *.jks
+.signing/
 .idea/

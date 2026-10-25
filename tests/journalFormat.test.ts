@@ -50,3 +50,12 @@ test('rejects duplicate IDs and missing entries', () => {
 test('content version changes when external text changes', () => {
   assert.notEqual(contentVersion(journal), contentVersion(`${journal}external edit`));
 });
+
+test('CRLF legacy headers retain their named timezone', () => {
+  const text = '---\r\ntimezone: Asia/Kolkata\r\n---\r\n<!-- mindlog-entry-id: legacy -->\r\n<!-- created: 2026-10-01T09:00:00+05:30 -->\r\nText\r\n<!-- /mindlog-entry -->';
+  assert.equal(parseJournal(text, date)[0].timezone, 'Asia/Kolkata');
+});
+
+test('invalid edit timestamps are rejected', () => {
+  assert.throws(() => parseJournal(entryBlock({ ...first, updatedAt: 'invalid' }), date), /timestamp/);
+});
