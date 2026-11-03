@@ -6,6 +6,7 @@
   "scripts": {
     "start": "expo start --dev-client",
     "android": "expo run:android",
+    "android:bundle": "cd android && gradlew.bat bundleRelease",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:watch": "node --experimental-strip-types --test --watch tests/*.test.ts",

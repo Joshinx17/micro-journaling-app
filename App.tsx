@@ -321,6 +321,8 @@ const Settings = ({ c, folder, theme, setTheme, choose, exportJournal, issues, r
   <Text style={{ color: c.muted }}>Recover a damaged day or undo an edit or deletion. The five latest revisions per day are available.</Text>
   <TextInput accessibilityLabel="Recovery date, YYYY-MM-DD" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={c.muted} style={[styles.search, { color: c.text, backgroundColor: c.elevated }]} />
   <Pressable accessibilityRole="button" style={styles.row} onPress={() => recover(date)}><Text style={{ color: c.accent }}>View daily revisions</Text></Pressable>
+  <Text style={[styles.section, { color: c.muted }]}>PRIVACY</Text>
+  <Text style={{ color: c.muted }}>Your journal stays in the folder you choose. MindLog has no account, ads, analytics, or app server. Journal files and snapshots are not encrypted by MindLog. Other apps or storage providers with access to your folder may be able to read them. Sharing or exporting sends content to the destination you select. Uninstalling MindLog does not delete a journal stored in a user-selected folder.</Text>
   <Text style={[styles.section, { color: c.muted }]}>ABOUT</Text><Text style={[styles.rowText, { color: c.text }]}>MindLog 1.1.0</Text>
 </ScrollView></View>;
 };

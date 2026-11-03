@@ -1037,6 +1037,12 @@ Expo Go is not used for the full application because persistent Android folder a
 
 ---
 
+# Google Play release
+
+See [PLAY_RELEASE.md](PLAY_RELEASE.md) for the signing, testing, artwork, privacy, and Play Console gates. Google Play uploads use a signed Android App Bundle, not an APK. The repository deliberately contains no signing secrets.
+
+After configuring the four `MINDLOG_` signing environment variables described there, generate the Android project with `npx expo prebuild --clean --platform android`, then run `npm run android:bundle`. The `.aab` is produced under `android/app/build/outputs/bundle/release/`.
+
 # Release APK
 
 To generate a local release APK:
@@ -1157,7 +1163,7 @@ MindLog is an attempt to build that philosophy into the software itself.
 
 # Status
 
-**Current version:** 1.0
+**Current version:** 1.1.0
 
 **Platform:** Android
 
