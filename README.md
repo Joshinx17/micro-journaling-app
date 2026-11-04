@@ -1035,6 +1035,14 @@ npx expo run:android
 
 Expo Go is not used for the full application because persistent Android folder access requires a development build.
 
+### Running on an Android Studio emulator
+
+Start the emulator, then run `npm run android` from this repository in a terminal. Keep that terminal open while using the debug app: Metro serves the JavaScript bundle on port 8081. Android Studio's **Run** action alone installs a debug APK but does not start Metro, so the app will show “Unable to load script” if no bundler is running. The stack trace below that message is a consequence of the same missing bundle.
+
+If a debug APK is already installed, start Metro with `npm run start:emulator` from the repository and reload the app. Rebuild with `npm run android` after native dependency or Android configuration changes. For a standalone install that works without Metro, build a signed release APK or AAB; a debug APK is not a standalone release artifact.
+
+On Windows, keep the repository path short (for example `D:\dev\mindlog`). A native rebuild from a long path such as `D:\My Stuff\Learning\Programming Tutorials\Github Repositories\micro-journaling-app` can fail in CMake/Ninja while creating object-file directories. Move the repository to a short directory, reopen that location in Android Studio, and rebuild there if you see `ninja: error: mkdir(...)` or `CMAKE_OBJECT_PATH_MAX` warnings. A temporary `subst` drive mapping may still fail during Expo autolinking; a real short checkout is more reliable.
+
 ---
 
 # Google Play release

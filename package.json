@@ -5,6 +5,7 @@
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start --dev-client",
+    "start:emulator": "expo start --localhost",
     "android": "expo run:android",
     "android:bundle": "cd android && gradlew.bat bundleRelease",
     "typecheck": "tsc --noEmit",
