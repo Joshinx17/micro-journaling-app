@@ -4,7 +4,7 @@
 
 - Confirm `com.mindlog.app` is the intended permanent Play package name. Once published, it cannot be changed for this listing.
 - Set a unique, increasing `android.versionCode` in `app.json` for every Play upload and keep `expo.version` and `package.json` in sync. The current first-upload code is 1.
-- Replace the generated Expo launcher icon with final MindLog artwork and configure `expo.icon` and `android.adaptiveIcon`. Create a Play feature graphic and screenshots from a real release build.
+- Configure the included MindLog launcher icon and adaptive icon in `app.json`. The included `assets/mindlog-feature-graphic.png` is a starting feature graphic; review the final artwork and capture screenshots from a real release build.
 - Publish `PRIVACY.md` at a public URL after adding a working contact address. Link the URL in Play Console and in the app before submission.
 - Run `npm ci`, `npm run typecheck`, `npm test`, and `npx expo prebuild --clean --platform android`. Review the resulting merged manifest and release permissions.
 
